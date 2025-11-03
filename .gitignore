@@ -2,3 +2,8 @@
 /tests/*.passed
 /tests/*-actual-*.txt
 /*.formatted
+/main-32
+/main-64
+/main-64-std-alloc
+/main-32-std-alloc
+/.vscode
