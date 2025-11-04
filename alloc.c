@@ -114,6 +114,9 @@ void delete() {
 
 static void* allocate_in_specials(size_t nmemb) {
   size_t round_to_eight = (nmemb / 8 + (nmemb % 8 ? 1 : 0)) * 8;
+  if (nmemb == 0)
+    round_to_eight = 8;
+
   special_arena_t* allocation_arena = &allocator.s_arenas[(round_to_eight - 8) / 8];
   if (*allocation_arena->head == NULL)
     return NULL;
@@ -126,6 +129,7 @@ static void* allocate_in_specials(size_t nmemb) {
 }
 
 static void* allocate_in_large(size_t nmemb) {
+  nmemb = (nmemb / sizeof(size_t) + (nmemb % sizeof(size_t) ? 1 : 0)) * sizeof(size_t);
   block_t* avaliable = allocator.large.unused;
   while (avaliable && nmemb + PTR_SIZE > avaliable->block_size) {
     avaliable = avaliable->next;
