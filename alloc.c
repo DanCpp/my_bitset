@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 
-#define PTR_SIZE sizeof(char*)
+#define MEM_SIZE sizeof(size_t)
 #define MEGABYTE (1 << 20)
 #define MIN_SIZE 8
 #define MAX_SIZE 128
@@ -131,24 +131,24 @@ static void* allocate_in_specials(size_t nmemb) {
 static void* allocate_in_large(size_t nmemb) {
   nmemb = (nmemb / sizeof(size_t) + (nmemb % sizeof(size_t) ? 1 : 0)) * sizeof(size_t);
   block_t* avaliable = allocator.large.unused;
-  while (avaliable && nmemb + PTR_SIZE > avaliable->block_size) {
+  while (avaliable && nmemb + MEM_SIZE > avaliable->block_size) {
     avaliable = avaliable->next;
   }
 
   if (!avaliable)
     return NULL;
 
-  char* ptr = avaliable->memory + PTR_SIZE;
+  char* ptr = avaliable->memory + MEM_SIZE;
   *(size_t*) (avaliable->memory) = nmemb;
   avaliable->memory = ptr + nmemb;
-  avaliable->block_size -= (nmemb + PTR_SIZE);
+  avaliable->block_size -= (nmemb + MEM_SIZE);
 
   return ptr;
 }
 
 static size_t get_size(void* ptr) {
   if ((char*) ptr > allocator.large.memory)
-    return *(size_t*) ((char*) ptr - PTR_SIZE);
+    return *(size_t*) ((char*) ptr - MEM_SIZE);
 
   size_t arena_index = (size_t) ((char*) ptr - allocator.memory) / (10 * MEGABYTE);
   return allocator.s_arenas[arena_index].bs;
@@ -213,8 +213,8 @@ static void deallocate_large(void* ptr, size_t ptr_size) {
     next = next->next;
   }
 
-  if (prev && (prev->memory + prev->block_size == (char*) ptr - PTR_SIZE)) {
-    prev->block_size += (PTR_SIZE + ptr_size);
+  if (prev && (prev->memory + prev->block_size == (char*) ptr - MEM_SIZE)) {
+    prev->block_size += (MEM_SIZE + ptr_size);
     if (prev->memory + prev->block_size == next->memory) {
       prev->block_size += next->block_size;
       prev->next = next->next;
@@ -225,16 +225,16 @@ static void deallocate_large(void* ptr, size_t ptr_size) {
   }
 
   if ((char*) ptr + ptr_size == next->memory) {
-    next->memory = (char*) ptr - PTR_SIZE;
-    next->block_size += (PTR_SIZE + ptr_size);
+    next->memory = (char*) ptr - MEM_SIZE;
+    next->block_size += (MEM_SIZE + ptr_size);
 
     return;
   }
 
   block_t* new = nc_malloc(sizeof(block_t));
   *new = (block_t){
-      .memory = (char*) ptr - PTR_SIZE,
-      .block_size = PTR_SIZE + ptr_size,
+      .memory = (char*) ptr - MEM_SIZE,
+      .block_size = MEM_SIZE + ptr_size,
       .next = next,
   };
 
