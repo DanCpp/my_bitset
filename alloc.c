@@ -15,13 +15,27 @@
 
 #define min(a, b) (a < b) ? a : b
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+static bool is_null(void* ptr) {
+  return ptr == NULL;
+}
+
 static void* nc_malloc(size_t nmemb) {
   void* ptr = malloc(nmemb);
-  if (!ptr) {
+  if (is_null(ptr)) {
+    abort();
+  }
+
+  return ptr;
+}
+
+static void* nc_calloc(size_t n, size_t memb) {
+  void* ptr = calloc(n, memb);
+  if (is_null(ptr)) {
     abort();
   }
 
@@ -84,7 +98,7 @@ static void initialize_large() {
 }
 
 void create() {
-  allocator.memory = nc_malloc(460 * MEGABYTE);
+  allocator.memory = nc_calloc(460 * MEGABYTE, sizeof(char));
   initialize_specials();
   initialize_large();
 }
@@ -100,23 +114,41 @@ void delete() {
   }
 }
 
+bool went_over(char* ptr, size_t bs, char* arena_memory, size_t arena_size) {
+  return (ptr + bs > arena_memory + arena_size);
+}
+
+bool on_end(char* ptr, size_t bs, char* arena_memory, size_t arena_size) {
+  return (ptr + bs == arena_memory + arena_size);
+}
+
 static void* allocate_in_specials(size_t nmemb) {
   size_t round_to_eight = (nmemb / 8 + (nmemb % 8 ? 1 : 0)) * 8;
   if (nmemb == 0)
     round_to_eight = 8;
 
   special_arena_t* allocation_arena = &allocator.s_arenas[(round_to_eight - 8) / 8];
-  if (!allocation_arena->head)
+  char** head = allocation_arena->head;
+  if (is_null(head))
     return NULL;
 
-  char* ptr = (char*) allocation_arena->head;
-  allocation_arena->head = (char**) (*allocation_arena->head);
-  if ((char*) allocation_arena->head + allocation_arena->bs > allocation_arena->memory + allocation_arena->size) {
-    *allocation_arena->head = NULL;
-  } else {
-    *allocation_arena->head = ((char*) allocation_arena->head + allocation_arena->bs);
+  void* ptr = (char*) head;
+  head = (char**) (*head);
+  if (is_null(head)) {
+    allocation_arena->head = NULL;
+    return ptr;
   }
 
+  if (on_end((char*) head, allocation_arena->bs, allocation_arena->memory, allocation_arena->size)) {
+    *head = NULL;
+  } else if (went_over((char*) head, allocation_arena->bs, allocation_arena->memory, allocation_arena->size)) {
+    head = NULL;
+  } else {
+    if (is_null(*head))
+      *head = ((char*) head + allocation_arena->bs);
+  }
+
+  allocation_arena->head = head;
   return ptr;
 }
 
@@ -127,7 +159,7 @@ static void* allocate_in_large(size_t nmemb) {
     avaliable = avaliable->next;
   }
 
-  if (!avaliable)
+  if (is_null(avaliable))
     return NULL;
 
   char* ptr = avaliable->memory + MEM_SIZE;
@@ -151,7 +183,7 @@ void* allocate(size_t nmemb) {
     return allocate_in_large(nmemb);
 
   void* ptr = allocate_in_specials(nmemb);
-  if (!ptr)
+  if (is_null(ptr))
     return allocate_in_large(nmemb);
 
   return ptr;
@@ -159,7 +191,7 @@ void* allocate(size_t nmemb) {
 
 void* allocate_filled(size_t n, size_t memb) {
   void* ptr = allocate(n * memb);
-  if (!ptr)
+  if (is_null(ptr))
     return NULL;
 
   memset(ptr, 0, n * memb);
@@ -167,11 +199,11 @@ void* allocate_filled(size_t n, size_t memb) {
 }
 
 void* reallocate(void* old, size_t nmemb) {
-  if (!old)
+  if (is_null(old))
     return allocate(nmemb);
 
   char* c_new = allocate(nmemb);
-  if (!c_new)
+  if (is_null(c_new))
     return NULL;
 
   char* c_old = (char*) old;
@@ -230,19 +262,19 @@ static void deallocate_large(void* ptr, size_t ptr_size) {
       .next = next,
   };
 
-  if (prev)
+  if (!is_null(prev))
     prev->next = new;
   else
     allocator.large.unused = new;
 }
 
 void deallocate(void* ptr) {
-  if (!ptr)
+  if (is_null(ptr))
     return;
 
   size_t ptr_size = get_size(ptr);
   // deallocation in large happened
-  if (ptr_size > 128) {
+  if (ptr_size > 128 || (char*) ptr >= allocator.large.memory) {
     deallocate_large(ptr, ptr_size);
     return;
   }
