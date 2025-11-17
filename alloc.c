@@ -67,19 +67,7 @@ static void initialize_specials() {
       arena->memory = allocator.memory;
 
     arena->head = (char**) arena->memory;
-    char** next = arena->head;
-    char** prev = NULL;
-    while ((char*) next < arena->memory + arena->size) {
-      if (prev)
-        *next = *prev + arena->bs;
-      else
-        *next = (char*) arena->head + arena->bs;
-
-      prev = next;
-      next = (char**) (*next);
-    }
-    *prev = NULL;
-    ///
+    *arena->head = (char*) arena->head + arena->bs;
   }
 }
 
@@ -118,13 +106,17 @@ static void* allocate_in_specials(size_t nmemb) {
     round_to_eight = 8;
 
   special_arena_t* allocation_arena = &allocator.s_arenas[(round_to_eight - 8) / 8];
-  if (*allocation_arena->head == NULL)
+  if (!allocation_arena->head)
     return NULL;
 
-  char** new_head = (char**) (*allocation_arena->head);
-  void* ptr = ((char*) allocation_arena->head);
+  char* ptr = (char*) allocation_arena->head;
+  allocation_arena->head = (char**) (*allocation_arena->head);
+  if ((char*) allocation_arena->head + allocation_arena->bs > allocation_arena->memory + allocation_arena->size) {
+    *allocation_arena->head = NULL;
+  } else {
+    *allocation_arena->head = ((char*) allocation_arena->head + allocation_arena->bs);
+  }
 
-  allocation_arena->head = new_head;
   return ptr;
 }
 
