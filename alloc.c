@@ -114,11 +114,11 @@ void delete() {
   }
 }
 
-bool went_over(char* ptr, size_t bs, char* arena_memory, size_t arena_size) {
+static bool went_over(char* ptr, size_t bs, char* arena_memory, size_t arena_size) {
   return (ptr + bs > arena_memory + arena_size);
 }
 
-bool on_end(char* ptr, size_t bs, char* arena_memory, size_t arena_size) {
+static bool on_end(char* ptr, size_t bs, char* arena_memory, size_t arena_size) {
   return (ptr + bs == arena_memory + arena_size);
 }
 
